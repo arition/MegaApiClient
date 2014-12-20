@@ -413,6 +413,51 @@ namespace CG.Web.MegaApiClient
         }
 
         /// <summary>
+        /// Retrieve a Stream to download and decrypt the file from specified Share Uri
+        /// </summary>
+        /// <param name="uri">Share Uri</param>
+        /// <exception cref="NotSupportedException">Not logged in</exception>
+        /// <exception cref="ApiException">Mega.co.nz service reports an error</exception>
+        /// <exception cref="ArgumentNullException">uri is null</exception>
+        /// <exception cref="ArgumentException">uri is not valid (only file can be downloaded)</exception>
+        /// <exception cref="DownloadException">Checksum is invalid. Downloaded data are corrupted</exception>
+        public Stream DownloadFromUrl(Uri uri)
+        {
+            if (uri == null)
+            {
+                throw new ArgumentNullException("uri");
+            }
+            this.EnsureLoggedIn();
+
+            string[] url = uri.OriginalString.Split('!');
+            if (url[0].EndsWith("F"))
+            {
+                throw new ArgumentException("Share Uri is a directory");
+            }
+            Byte[] decryptedKey = url[2].FromBase64();
+
+            // Extract Iv and MetaMac
+            byte[] iv = new byte[8];
+            byte[] metaMac = new byte[8];
+            Array.Copy(decryptedKey, 16, iv, 0, 8);
+            Array.Copy(decryptedKey, 24, metaMac, 0, 8);
+
+            // For files, key is 256 bits long. Compute the key to retrieve 128 AES key
+            Byte[] key = new byte[16];
+            for (int idx = 0; idx < 16; idx++)
+            {
+                key[idx] = (byte)(decryptedKey[idx] ^ decryptedKey[idx + 16]);
+            }
+
+            // Retrieve download URL
+            ShareFileDownloadUrlRequest downloadRequest = new ShareFileDownloadUrlRequest(url[1]);
+            DownloadUrlResponse downloadResponse = this.Request<DownloadUrlResponse>(downloadRequest);
+
+            Stream dataStream = this._webClient.GetRequestRaw(new Uri(downloadResponse.Url));
+            return new MegaAesCtrStreamDecrypter(dataStream, downloadResponse.Size, key, iv, metaMac);
+        }
+
+        /// <summary>
         /// Upload a file on Mega.co.nz and attach created node to selected parent
         /// </summary>
         /// <param name="filename">File to upload</param>

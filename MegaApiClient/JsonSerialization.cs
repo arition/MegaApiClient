@@ -278,6 +278,20 @@ namespace CG.Web.MegaApiClient
         public string Id { get; private set; }
     }
 
+    internal class ShareFileDownloadUrlRequest : RequestBase
+    {
+        public ShareFileDownloadUrlRequest(string Id)
+            : base("g")
+        {
+            this.Id = Id;
+        }
+
+        public int g { get { return 1; } }
+
+        [JsonProperty("p")]
+        public string Id { get; private set; }
+    }
+
     internal class DownloadUrlResponse
     {
         [JsonProperty("g")]
